@@ -3,58 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meeting Room</title>
+    <title>Meeting Site</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            margin: 0;
-            padding: 0;
+            margin-top: 50px;
         }
-        video {
-            width: 45%;
+        button {
+            padding: 10px 20px;
             margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
         }
-        #controls {
-            margin: 20px;
+        .hidden {
+            display: none;
         }
     </style>
 </head>
 <body>
-    <h1>Meeting Room</h1>
-    <div id="videos">
-        <video id="localVideo" autoplay muted></video>
-        <video id="remoteVideo" autoplay></video>
-    </div>
-    <div id="controls">
-        <button id="startButton">Start Meeting</button>
-        <button id="callButton" disabled>Call</button>
-        <button id="hangupButton" disabled>Hang Up</button>
-    </div>
+    <h1>Welcome to the Meeting Site</h1>
+    
+    <button id="createMeetingBtn">Create Meeting</button>
+    <button id="joinMeetingBtn">Join Meeting</button>
+    
+    <p id="meetingPassword" class="hidden"></p>
 
     <script>
-        const startButton = document.getElementById('startButton');
-        const callButton = document.getElementById('callButton');
-        const hangupButton = document.getElementById('hangupButton');
-        const localVideo = document.getElementById('localVideo');
-        const remoteVideo = document.getElementById('remoteVideo');
+        let generatedPassword = '';
 
-        let localStream;
-        let peerConnection;
-        const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-        const socket = new WebSocket('ws://localhost:3000'); // Replace with your WebSocket server URL
+        document.getElementById('createMeetingBtn').addEventListener('click', function() {
+            // Generate a random password
+            generatedPassword = Math.random().toString(36).slice(-8); // 8-character random password
+            const passwordElement = document.getElementById('meetingPassword');
+            
+            // Display the password
+            passwordElement.textContent = `Meeting Password: ${generatedPassword}`;
+            passwordElement.classList.remove('hidden');
+            alert("Meeting created successfully!");
+        });
 
-        socket.onmessage = async (message) => {
-            const data = JSON.parse(message.data);
+        document.getElementById('joinMeetingBtn').addEventListener('click', function() {
+            if (!generatedPassword) {
+                alert("No meeting has been created. Please create a meeting first.");
+                return;
+            }
 
-            if (data.offer) {
-                peerConnection = new RTCPeerConnection(configuration);
-                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-                peerConnection.ontrack = event => {
-                    remoteVideo.srcObject = event.streams[0];
-                };
-
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-                const answer = await peerConnection.createAnswer();
-    
+            // Prompt user to enter the password
+            const enteredPassword = prompt("Enter the meeting password:");
+            
+            // Check if the entered password matches the generated password
+            if (enteredPassword === generatedPassword) {
+                alert("Welcome to the meeting!");
+            } else {
+                alert("Incorrect password. Please try again.");
+            }
+        });
+    </script>
+</body>
+</html>
