@@ -20,10 +20,13 @@
             display: none;
         }
         video {
-            width: 600px;
-            height: 400px;
-            margin-top: 20px;
+            width: 300px;
+            height: 200px;
+            margin: 10px;
             border: 2px solid #000;
+        }
+        #localVideo {
+            border-color: green;
         }
     </style>
 </head>
@@ -36,138 +39,147 @@
     <br>
     <button id="toggleMicBtn" class="hidden">Mute Microphone</button>
     <button id="toggleCamBtn" class="hidden">Turn Off Camera</button>
-    <button id="shareScreenBtn" class="hidden">Share Screen</button>
     
     <p id="meetingPassword" class="hidden"></p>
-    <video id="videoElement" autoplay playsinline></video>
+
+    <div>
+        <h2>Local Video</h2>
+        <video id="localVideo" autoplay playsinline muted></video>
+        <h2>Remote Videos</h2>
+        <div id="remoteVideos"></div>
+    </div>
 
     <script>
-        let generatedPassword = ''; // To store the meeting code
-        let stream = null; // To store the media stream
-        let isMicOn = true; // Microphone state
-        let isCamOn = true; // Camera state
+        const signalingServerUrl = "wss://your-signaling-server.com"; // Replace with your signaling server URL
+        let signalingServer = null;
 
-        // Function to start the media stream
-        async function startMediaStream() {
+        let localStream = null;
+        let peerConnections = {};
+        let meetingCode = '';
+
+        // Connect to signaling server
+        function connectToSignalingServer() {
+            signalingServer = new WebSocket(signalingServerUrl);
+
+            signalingServer.onmessage = async (message) => {
+                const data = JSON.parse(message.data);
+
+                if (data.type === "offer") {
+                    const peerConnection = createPeerConnection(data.sender);
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+
+                    signalingServer.send(JSON.stringify({
+                        type: "answer",
+                        answer: answer,
+                        sender: "local",
+                        recipient: data.sender,
+                    }));
+                } else if (data.type === "answer") {
+                    const peerConnection = peerConnections[data.sender];
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                } else if (data.type === "candidate") {
+                    const peerConnection = peerConnections[data.sender];
+                    if (peerConnection) {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    }
+                }
+            };
+
+            signalingServer.onopen = () => {
+                console.log("Connected to signaling server");
+            };
+        }
+
+        // Create a new peer connection
+        function createPeerConnection(peerId) {
+            const peerConnection = new RTCPeerConnection();
+
+            peerConnections[peerId] = peerConnection;
+
+            // Add local stream tracks to the peer connection
+            localStream.getTracks().forEach((track) => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            // Handle remote stream
+            peerConnection.ontrack = (event) => {
+                const remoteVideo = document.createElement("video");
+                remoteVideo.srcObject = event.streams[0];
+                remoteVideo.autoplay = true;
+                remoteVideo.playsInline = true;
+
+                document.getElementById("remoteVideos").appendChild(remoteVideo);
+            };
+
+            // Handle ICE candidates
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    signalingServer.send(JSON.stringify({
+                        type: "candidate",
+                        candidate: event.candidate,
+                        sender: "local",
+                        recipient: peerId,
+                    }));
+                }
+            };
+
+            return peerConnection;
+        }
+
+        // Start local video and audio
+        async function startLocalStream() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                const videoElement = document.getElementById('videoElement');
-                videoElement.srcObject = stream;
-
-                // Show control buttons
-                document.getElementById('endMeetingBtn').classList.remove('hidden');
-                document.getElementById('toggleMicBtn').classList.remove('hidden');
-                document.getElementById('toggleCamBtn').classList.remove('hidden');
-                document.getElementById('shareScreenBtn').classList.remove('hidden');
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById("localVideo").srcObject = localStream;
             } catch (error) {
                 console.error("Error accessing media devices:", error);
-                alert("Could not access camera or microphone. Please check your permissions.");
+                alert("Could not access camera and microphone. Please check your permissions.");
             }
         }
-
-        // Function to stop the media stream
-        function stopMediaStream() {
-            if (stream) {
-                const tracks = stream.getTracks();
-                tracks.forEach(track => track.stop()); // Stop all tracks (audio and video)
-                stream = null;
-            }
-            const videoElement = document.getElementById('videoElement');
-            videoElement.srcObject = null; // Clear the video element
-
-            // Hide control buttons
-            document.getElementById('endMeetingBtn').classList.add('hidden');
-            document.getElementById('toggleMicBtn').classList.add('hidden');
-            document.getElementById('toggleCamBtn').classList.add('hidden');
-            document.getElementById('shareScreenBtn').classList.add('hidden');
-        }
-
-        // Toggle Microphone
-        document.getElementById('toggleMicBtn').addEventListener('click', function() {
-            if (stream) {
-                const audioTrack = stream.getAudioTracks()[0];
-                if (audioTrack) {
-                    audioTrack.enabled = !audioTrack.enabled; // Toggle microphone
-                    isMicOn = audioTrack.enabled;
-                    this.textContent = isMicOn ? "Mute Microphone" : "Unmute Microphone";
-                }
-            }
-        });
-
-        // Toggle Camera
-        document.getElementById('toggleCamBtn').addEventListener('click', function() {
-            if (stream) {
-                const videoTrack = stream.getVideoTracks()[0];
-                if (videoTrack) {
-                    videoTrack.enabled = !videoTrack.enabled; // Toggle camera
-                    isCamOn = videoTrack.enabled;
-                    this.textContent = isCamOn ? "Turn Off Camera" : "Turn On Camera";
-                }
-            }
-        });
-
-        // Share Screen
-        document.getElementById('shareScreenBtn').addEventListener('click', async function() {
-            try {
-                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                const videoElement = document.getElementById('videoElement');
-                videoElement.srcObject = screenStream;
-
-                // Replace video track in the main stream with screen share
-                const videoTrack = screenStream.getVideoTracks()[0];
-                const sender = stream.getVideoTracks()[0];
-                if (sender) {
-                    stream.removeTrack(sender);
-                    stream.addTrack(videoTrack);
-                }
-                alert("You are now sharing your screen!");
-            } catch (error) {
-                console.error("Error sharing screen:", error);
-                alert("Could not share the screen. Please try again.");
-            }
-        });
 
         // Create Meeting Button
-        document.getElementById('createMeetingBtn').addEventListener('click', function() {
-            // Generate a random meeting code
-            generatedPassword = Math.random().toString(36).slice(-8); // 8-character random code
-            const passwordElement = document.getElementById('meetingPassword');
-            
-            // Display the meeting code
-            passwordElement.textContent = `Meeting Code: ${generatedPassword}`;
-            passwordElement.classList.remove('hidden');
-            alert("Meeting created successfully!");
+        document.getElementById("createMeetingBtn").addEventListener("click", async () => {
+            meetingCode = Math.random().toString(36).slice(-8); // Generate a random meeting code
+            document.getElementById("meetingPassword").textContent = `Meeting Code: ${meetingCode}`;
+            document.getElementById("meetingPassword").classList.remove("hidden");
 
-            // Start the media stream
-            startMediaStream();
+            connectToSignalingServer();
+            await startLocalStream();
         });
 
         // Join Meeting Button
-        document.getElementById('joinMeetingBtn').addEventListener('click', function() {
-            // Prompt the user to enter the meeting code
-            const enteredCode = prompt("Enter the meeting code:");
-
-            if (enteredCode) {
-                if (enteredCode === generatedPassword || !generatedPassword) {
-                    alert(`Joining meeting with code: ${enteredCode}`);
-                    startMediaStream(); // Start the media stream
-                } else {
-                    alert("Incorrect meeting code. Please try again.");
-                }
-            } else {
+        document.getElementById("joinMeetingBtn").addEventListener("click", async () => {
+            meetingCode = prompt("Enter the meeting code:");
+            if (!meetingCode) {
                 alert("Please enter a valid meeting code.");
+                return;
             }
+
+            connectToSignalingServer();
+            await startLocalStream();
+
+            signalingServer.send(JSON.stringify({
+                type: "join",
+                code: meetingCode,
+                sender: "local",
+            }));
         });
 
         // End Meeting Button
-        document.getElementById('endMeetingBtn').addEventListener('click', function() {
+        document.getElementById("endMeetingBtn").addEventListener("click", () => {
             if (confirm("Are you sure you want to end the meeting?")) {
-                stopMediaStream(); // Stop the media stream
-                generatedPassword = ''; // Clear the meeting code
-                const passwordElement = document.getElementById('meetingPassword');
-                passwordElement.textContent = ''; // Clear the displayed code
-                passwordElement.classList.add('hidden');
-                alert("Meeting has been ended.");
+                Object.values(peerConnections).forEach((peerConnection) => {
+                    peerConnection.close();
+                });
+                peerConnections = {};
+                if (localStream) {
+                    localStream.getTracks().forEach((track) => track.stop());
+                }
+                document.getElementById("remoteVideos").innerHTML = "";
+                document.getElementById("localVideo").srcObject = null;
+                alert("Meeting ended.");
             }
         });
     </script>
