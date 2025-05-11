@@ -19,10 +19,14 @@
         .hidden {
             display: none;
         }
+        .video-container {
+            display: inline-block;
+            margin: 10px;
+            text-align: center;
+        }
         video {
             width: 300px;
             height: 200px;
-            margin: 10px;
             border: 2px solid #000;
         }
         #localVideo {
@@ -43,10 +47,11 @@
     
     <p id="meetingPassword" class="hidden"></p>
 
-    <div>
-        <h2>Local Video</h2>
-        <video id="localVideo" autoplay playsinline muted></video>
-        <h2>Remote Videos</h2>
+    <div id="videoFrames">
+        <div id="localContainer" class="video-container">
+            <h2>Me</h2>
+            <video id="localVideo" autoplay playsinline muted></video>
+        </div>
         <div id="remoteVideos"></div>
     </div>
 
@@ -108,12 +113,22 @@
 
             // Handle remote stream
             peerConnection.ontrack = (event) => {
-                const remoteVideo = document.createElement("video");
-                remoteVideo.srcObject = event.streams[0];
-                remoteVideo.autoplay = true;
-                remoteVideo.playsInline = true;
+                let remoteContainer = document.getElementById(`remote-${peerId}`);
+                if (!remoteContainer) {
+                    // Create a new frame for the remote participant
+                    remoteContainer = document.createElement("div");
+                    remoteContainer.id = `remote-${peerId}`;
+                    remoteContainer.className = "video-container";
+                    remoteContainer.innerHTML = `<h2>Participant ${peerId}</h2>`;
 
-                document.getElementById("remoteVideos").appendChild(remoteVideo);
+                    const remoteVideo = document.createElement("video");
+                    remoteVideo.srcObject = event.streams[0];
+                    remoteVideo.autoplay = true;
+                    remoteVideo.playsInline = true;
+
+                    remoteContainer.appendChild(remoteVideo);
+                    document.getElementById("remoteVideos").appendChild(remoteContainer);
+                }
             };
 
             // Handle ICE candidates
@@ -212,7 +227,6 @@
                 }
                 document.getElementById("remoteVideos").innerHTML = "";
                 document.getElementById("localVideo").srcObject = null;
-
                 alert("Meeting ended.");
             }
         });
