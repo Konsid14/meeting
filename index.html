@@ -39,6 +39,7 @@
     <br>
     <button id="toggleMicBtn" class="hidden">Mute Microphone</button>
     <button id="toggleCamBtn" class="hidden">Turn Off Camera</button>
+    <button id="shareScreenBtn" class="hidden">Share Screen</button>
     
     <p id="meetingPassword" class="hidden"></p>
 
@@ -56,6 +57,8 @@
         let localStream = null;
         let peerConnections = {};
         let meetingCode = '';
+        let isMicOn = true;
+        let isCamOn = true;
 
         // Connect to signaling server
         function connectToSignalingServer() {
@@ -133,15 +136,90 @@
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById("localVideo").srcObject = localStream;
+
+                // Show control buttons
+                document.getElementById("toggleMicBtn").classList.remove("hidden");
+                document.getElementById("toggleCamBtn").classList.remove("hidden");
+                document.getElementById("shareScreenBtn").classList.remove("hidden");
+                document.getElementById("endMeetingBtn").classList.remove("hidden");
             } catch (error) {
                 console.error("Error accessing media devices:", error);
                 alert("Could not access camera and microphone. Please check your permissions.");
             }
         }
 
+        // Toggle Microphone
+        document.getElementById("toggleMicBtn").addEventListener("click", function () {
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    isMicOn = audioTrack.enabled;
+                    this.textContent = isMicOn ? "Mute Microphone" : "Unmute Microphone";
+                }
+            }
+        });
+
+        // Toggle Camera
+        document.getElementById("toggleCamBtn").addEventListener("click", function () {
+            if (localStream) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.enabled = !videoTrack.enabled;
+                    isCamOn = videoTrack.enabled;
+                    this.textContent = isCamOn ? "Turn Off Camera" : "Turn On Camera";
+                }
+            }
+        });
+
+        // Share Screen
+        document.getElementById("shareScreenBtn").addEventListener("click", async function () {
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const videoTrack = screenStream.getVideoTracks()[0];
+
+                for (const peerId in peerConnections) {
+                    const sender = peerConnections[peerId]
+                        .getSenders()
+                        .find((s) => s.track.kind === "video");
+                    sender.replaceTrack(videoTrack);
+                }
+
+                screenStream.getVideoTracks()[0].onended = () => {
+                    localStream.getVideoTracks().forEach((track) => {
+                        for (const peerId in peerConnections) {
+                            const sender = peerConnections[peerId]
+                                .getSenders()
+                                .find((s) => s.track.kind === "video");
+                            sender.replaceTrack(track);
+                        }
+                    });
+                };
+            } catch (error) {
+                console.error("Error sharing screen:", error);
+            }
+        });
+
+        // End Meeting
+        document.getElementById("endMeetingBtn").addEventListener("click", function () {
+            if (confirm("Are you sure you want to end the meeting?")) {
+                Object.values(peerConnections).forEach((peerConnection) => {
+                    peerConnection.close();
+                });
+                peerConnections = {};
+                if (localStream) {
+                    localStream.getTracks().forEach((track) => track.stop());
+                }
+                document.getElementById("remoteVideos").innerHTML = "";
+                document.getElementById("localVideo").srcObject = null;
+
+                alert("Meeting ended.");
+            }
+        });
+
         // Create Meeting Button
         document.getElementById("createMeetingBtn").addEventListener("click", async () => {
-            meetingCode = Math.random().toString(36).slice(-8); // Generate a random meeting code
+            meetingCode = Math.random().toString(36).slice(-8);
             document.getElementById("meetingPassword").textContent = `Meeting Code: ${meetingCode}`;
             document.getElementById("meetingPassword").classList.remove("hidden");
 
@@ -165,22 +243,6 @@
                 code: meetingCode,
                 sender: "local",
             }));
-        });
-
-        // End Meeting Button
-        document.getElementById("endMeetingBtn").addEventListener("click", () => {
-            if (confirm("Are you sure you want to end the meeting?")) {
-                Object.values(peerConnections).forEach((peerConnection) => {
-                    peerConnection.close();
-                });
-                peerConnections = {};
-                if (localStream) {
-                    localStream.getTracks().forEach((track) => track.stop());
-                }
-                document.getElementById("remoteVideos").innerHTML = "";
-                document.getElementById("localVideo").srcObject = null;
-                alert("Meeting ended.");
-            }
         });
     </script>
 </body>
