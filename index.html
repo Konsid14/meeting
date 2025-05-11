@@ -38,7 +38,6 @@
 
     <script>
         let generatedPassword = '';
-        let isMeetingActive = false;
 
         const videoElement = document.getElementById('videoElement');
 
@@ -47,7 +46,6 @@
                 // Access the user's camera and microphone
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 videoElement.srcObject = stream;
-                isMeetingActive = true;
             } catch (error) {
                 console.error("Error accessing media devices:", error);
                 alert("Could not access camera or microphone. Please check your permissions.");
@@ -55,11 +53,6 @@
         }
 
         document.getElementById('createMeetingBtn').addEventListener('click', function() {
-            if (isMeetingActive) {
-                alert("A meeting is already active.");
-                return;
-            }
-
             // Generate a random password
             generatedPassword = Math.random().toString(36).slice(-8); // 8-character random password
             const passwordElement = document.getElementById('meetingPassword');
@@ -68,31 +61,16 @@
             passwordElement.textContent = `Meeting Password: ${generatedPassword}`;
             passwordElement.classList.remove('hidden');
             alert("Meeting created successfully!");
-
-            // Start the media stream
-            startMediaStream();
         });
 
         document.getElementById('joinMeetingBtn').addEventListener('click', function() {
-            if (isMeetingActive) {
-                alert("You are already in a meeting.");
-                return;
-            }
-
-            if (!generatedPassword) {
-                alert("No meeting has been created. Please create a meeting first.");
-                return;
-            }
-
             // Prompt user to enter the password
             const enteredPassword = prompt("Enter the meeting password:");
             
-            // Check if the entered password matches the generated password
-            if (enteredPassword === generatedPassword) {
+            // Check if there's a password created or just allow joining
+            if (!generatedPassword || enteredPassword === generatedPassword) {
                 alert("Welcome to the meeting!");
-
-                // Start the media stream
-                startMediaStream();
+                startMediaStream(); // Start the media stream
             } else {
                 alert("Incorrect password. Please try again.");
             }
