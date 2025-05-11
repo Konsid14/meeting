@@ -37,14 +37,13 @@
     <video id="videoElement" autoplay playsinline></video>
 
     <script>
-        let generatedPassword = '';
+        let generatedPassword = ''; // To store the meeting code
 
-        const videoElement = document.getElementById('videoElement');
-
+        // Function to start the media stream
         async function startMediaStream() {
             try {
-                // Access the user's camera and microphone
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                const videoElement = document.getElementById('videoElement');
                 videoElement.srcObject = stream;
             } catch (error) {
                 console.error("Error accessing media devices:", error);
@@ -52,29 +51,41 @@
             }
         }
 
+        // Create Meeting Button
         document.getElementById('createMeetingBtn').addEventListener('click', function() {
-            // Generate a random password
-            generatedPassword = Math.random().toString(36).slice(-8); // 8-character random password
+            // Generate a random meeting code
+            generatedPassword = Math.random().toString(36).slice(-8); // 8-character random code
             const passwordElement = document.getElementById('meetingPassword');
             
-            // Display the password
-            passwordElement.textContent = `Meeting Password: ${generatedPassword}`;
+            // Display the meeting code
+            passwordElement.textContent = `Meeting Code: ${generatedPassword}`;
             passwordElement.classList.remove('hidden');
             alert("Meeting created successfully!");
+
+            // Redirect to the meeting URL
+            window.location.href = `meeting.html?code=${generatedPassword}`;
         });
 
+        // Join Meeting Button
         document.getElementById('joinMeetingBtn').addEventListener('click', function() {
-            // Prompt user to enter the password
-            const enteredPassword = prompt("Enter the meeting password:");
-            
-            // Check if there's a password created or just allow joining
-            if (!generatedPassword || enteredPassword === generatedPassword) {
-                alert("Welcome to the meeting!");
-                startMediaStream(); // Start the media stream
+            // Prompt the user to enter the meeting code
+            const enteredCode = prompt("Enter the meeting code:");
+
+            if (enteredCode) {
+                // Redirect the user to the meeting page with the entered code
+                window.location.href = `meeting.html?code=${enteredCode}`;
             } else {
-                alert("Incorrect password. Please try again.");
+                alert("Please enter a valid meeting code.");
             }
         });
+
+        // If the user is on the meeting page, start the media stream
+        const urlParams = new URLSearchParams(window.location.search);
+        const meetingCode = urlParams.get('code');
+        if (meetingCode) {
+            alert(`Welcome to meeting with code: ${meetingCode}`);
+            startMediaStream();
+        }
     </script>
 </body>
 </html>
