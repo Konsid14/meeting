@@ -33,6 +33,10 @@
     <button id="createMeetingBtn">Create Meeting</button>
     <button id="joinMeetingBtn">Join Meeting</button>
     <button id="endMeetingBtn" class="hidden">End Meeting</button>
+    <br>
+    <button id="toggleMicBtn" class="hidden">Mute Microphone</button>
+    <button id="toggleCamBtn" class="hidden">Turn Off Camera</button>
+    <button id="shareScreenBtn" class="hidden">Share Screen</button>
     
     <p id="meetingPassword" class="hidden"></p>
     <video id="videoElement" autoplay playsinline></video>
@@ -40,6 +44,8 @@
     <script>
         let generatedPassword = ''; // To store the meeting code
         let stream = null; // To store the media stream
+        let isMicOn = true; // Microphone state
+        let isCamOn = true; // Camera state
 
         // Function to start the media stream
         async function startMediaStream() {
@@ -47,7 +53,12 @@
                 stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 const videoElement = document.getElementById('videoElement');
                 videoElement.srcObject = stream;
-                document.getElementById('endMeetingBtn').classList.remove('hidden'); // Show End Meeting button
+
+                // Show control buttons
+                document.getElementById('endMeetingBtn').classList.remove('hidden');
+                document.getElementById('toggleMicBtn').classList.remove('hidden');
+                document.getElementById('toggleCamBtn').classList.remove('hidden');
+                document.getElementById('shareScreenBtn').classList.remove('hidden');
             } catch (error) {
                 console.error("Error accessing media devices:", error);
                 alert("Could not access camera or microphone. Please check your permissions.");
@@ -63,8 +74,58 @@
             }
             const videoElement = document.getElementById('videoElement');
             videoElement.srcObject = null; // Clear the video element
-            document.getElementById('endMeetingBtn').classList.add('hidden'); // Hide End Meeting button
+
+            // Hide control buttons
+            document.getElementById('endMeetingBtn').classList.add('hidden');
+            document.getElementById('toggleMicBtn').classList.add('hidden');
+            document.getElementById('toggleCamBtn').classList.add('hidden');
+            document.getElementById('shareScreenBtn').classList.add('hidden');
         }
+
+        // Toggle Microphone
+        document.getElementById('toggleMicBtn').addEventListener('click', function() {
+            if (stream) {
+                const audioTrack = stream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled; // Toggle microphone
+                    isMicOn = audioTrack.enabled;
+                    this.textContent = isMicOn ? "Mute Microphone" : "Unmute Microphone";
+                }
+            }
+        });
+
+        // Toggle Camera
+        document.getElementById('toggleCamBtn').addEventListener('click', function() {
+            if (stream) {
+                const videoTrack = stream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.enabled = !videoTrack.enabled; // Toggle camera
+                    isCamOn = videoTrack.enabled;
+                    this.textContent = isCamOn ? "Turn Off Camera" : "Turn On Camera";
+                }
+            }
+        });
+
+        // Share Screen
+        document.getElementById('shareScreenBtn').addEventListener('click', async function() {
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const videoElement = document.getElementById('videoElement');
+                videoElement.srcObject = screenStream;
+
+                // Replace video track in the main stream with screen share
+                const videoTrack = screenStream.getVideoTracks()[0];
+                const sender = stream.getVideoTracks()[0];
+                if (sender) {
+                    stream.removeTrack(sender);
+                    stream.addTrack(videoTrack);
+                }
+                alert("You are now sharing your screen!");
+            } catch (error) {
+                console.error("Error sharing screen:", error);
+                alert("Could not share the screen. Please try again.");
+            }
+        });
 
         // Create Meeting Button
         document.getElementById('createMeetingBtn').addEventListener('click', function() {
