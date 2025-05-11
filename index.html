@@ -32,23 +32,38 @@
     
     <button id="createMeetingBtn">Create Meeting</button>
     <button id="joinMeetingBtn">Join Meeting</button>
+    <button id="endMeetingBtn" class="hidden">End Meeting</button>
     
     <p id="meetingPassword" class="hidden"></p>
     <video id="videoElement" autoplay playsinline></video>
 
     <script>
         let generatedPassword = ''; // To store the meeting code
+        let stream = null; // To store the media stream
 
         // Function to start the media stream
         async function startMediaStream() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 const videoElement = document.getElementById('videoElement');
                 videoElement.srcObject = stream;
+                document.getElementById('endMeetingBtn').classList.remove('hidden'); // Show End Meeting button
             } catch (error) {
                 console.error("Error accessing media devices:", error);
                 alert("Could not access camera or microphone. Please check your permissions.");
             }
+        }
+
+        // Function to stop the media stream
+        function stopMediaStream() {
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop()); // Stop all tracks (audio and video)
+                stream = null;
+            }
+            const videoElement = document.getElementById('videoElement');
+            videoElement.srcObject = null; // Clear the video element
+            document.getElementById('endMeetingBtn').classList.add('hidden'); // Hide End Meeting button
         }
 
         // Create Meeting Button
@@ -62,8 +77,8 @@
             passwordElement.classList.remove('hidden');
             alert("Meeting created successfully!");
 
-            // Redirect to the meeting URL
-            window.location.href = `meeting.html?code=${generatedPassword}`;
+            // Start the media stream
+            startMediaStream();
         });
 
         // Join Meeting Button
@@ -72,20 +87,28 @@
             const enteredCode = prompt("Enter the meeting code:");
 
             if (enteredCode) {
-                // Redirect the user to the meeting page with the entered code
-                window.location.href = `meeting.html?code=${enteredCode}`;
+                if (enteredCode === generatedPassword || !generatedPassword) {
+                    alert(`Joining meeting with code: ${enteredCode}`);
+                    startMediaStream(); // Start the media stream
+                } else {
+                    alert("Incorrect meeting code. Please try again.");
+                }
             } else {
                 alert("Please enter a valid meeting code.");
             }
         });
 
-        // If the user is on the meeting page, start the media stream
-        const urlParams = new URLSearchParams(window.location.search);
-        const meetingCode = urlParams.get('code');
-        if (meetingCode) {
-            alert(`Welcome to meeting with code: ${meetingCode}`);
-            startMediaStream();
-        }
+        // End Meeting Button
+        document.getElementById('endMeetingBtn').addEventListener('click', function() {
+            if (confirm("Are you sure you want to end the meeting?")) {
+                stopMediaStream(); // Stop the media stream
+                generatedPassword = ''; // Clear the meeting code
+                const passwordElement = document.getElementById('meetingPassword');
+                passwordElement.textContent = ''; // Clear the displayed code
+                passwordElement.classList.add('hidden');
+                alert("Meeting has been ended.");
+            }
+        });
     </script>
 </body>
 </html>
